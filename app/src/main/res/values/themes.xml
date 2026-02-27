@@ -1,0 +1,43 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Base.Theme.ExpenseTracker" parent="Theme.Material3.DayNight.NoActionBar">
+    </style>
+
+    <style name="Theme.ExpenseTracker" parent="Base.Theme.ExpenseTracker" />
+
+    <style name="CalcBtn" parent="Widget.MaterialComponents.Button">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">80dp</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:layout_margin">8dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="cornerRadius">40dp</item>
+        <item name="android:textSize">24sp</item>
+    </style>
+
+    <style name="CalcBtnNum" parent="CalcBtn">
+        <item name="backgroundTint">#2E2F38</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="CalcBtnAction" parent="CalcBtn">
+        <item name="backgroundTint">#4E505F</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="CalcBtnOp" parent="CalcBtn">
+        <item name="backgroundTint">#6200EE</item>
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+    <style name="CalcBtnEqual" parent="CalcBtn">
+        <item name="backgroundTint">#03DAC5</item>
+        <item name="android:textColor">#000000</item>
+    </style>
+
+    <style name="Theme.AppSplash" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:statusBarColor">#6200EE</item>
+    </style>
+
+</resources>

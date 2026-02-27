@@ -1,0 +1,62 @@
+plugins {
+    alias(libs.plugins.android.application)
+    // Connects the app to your google-services.json file
+    id("com.google.gms.google-services")
+}
+
+android {
+    namespace 'com.example.expensetracker'
+    // Set to 36 to support the latest Android 15 libraries
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.example.expensetracker"
+
+        // Fixed: Set to 26 to support Adaptive Icons and modern libraries
+        minSdk 26
+
+        // Fixed: Set to 36 to match compileSdk
+        targetSdk 36
+
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // Standard Android Libraries
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.activity
+    implementation libs.constraintlayout
+
+    // Firebase SDK Section
+    // Import the Firebase BoM (Bill of Materials)
+    implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
+
+    // Core Firebase dependencies for Auth and Database
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-database")
+
+    // Testing Libraries
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+}
