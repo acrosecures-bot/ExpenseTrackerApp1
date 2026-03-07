@@ -3,8 +3,10 @@ package com.example.expensetracker;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.*;
@@ -19,7 +21,10 @@ import com.github.mikephil.charting.data.*;
 import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.*;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -34,8 +39,10 @@ public class HomeActivity extends AppCompatActivity {
     private ExpenseAdapter adapter;
     private List<Expense> expenseList;
 
-    private DatabaseReference mDatabase;
+    // FIXED: Using Firestore instead of DatabaseReference
+    private FirebaseFirestore db;
     private FirebaseAuth mAuth;
+    private static final String TAG = "FIRESTORE_DEBUG";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,23 +50,21 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
 
         mAuth = FirebaseAuth.getInstance();
-        mDatabase = FirebaseDatabase.getInstance().getReference("Expenses");
+        // FIXED: Initialize the Firestore instance here
+        db = FirebaseFirestore.getInstance();
 
-        // UI Initialization
         tvTotalAmount = findViewById(R.id.tvTotalAmount);
         pieChart = findViewById(R.id.pieChart);
         btnOpenCalc = findViewById(R.id.btnOpenCalc);
         btnOpenCurrency = findViewById(R.id.btnOpenCurrency);
         fabAddExpense = findViewById(R.id.fabAddExpense);
 
-        // RecyclerView Setup
         rvExpenses = findViewById(R.id.rvExpenses);
         rvExpenses.setLayoutManager(new LinearLayoutManager(this));
         expenseList = new ArrayList<>();
         adapter = new ExpenseAdapter(expenseList, position -> deleteExpense(position));
         rvExpenses.setAdapter(adapter);
 
-        // Click Listeners
         btnOpenCalc.setOnClickListener(v -> startActivity(new Intent(this, CalculatorActivity.class)));
         btnOpenCurrency.setOnClickListener(v -> startActivity(new Intent(this, CurrencyActivity.class)));
         fabAddExpense.setOnClickListener(v -> showAddExpenseDialog());
@@ -84,7 +89,7 @@ public class HomeActivity extends AppCompatActivity {
         spCategory.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, categories));
 
         final Calendar calendar = Calendar.getInstance();
-        
+
         btnDatePicker.setOnClickListener(v -> {
             new DatePickerDialog(this, (view1, year, month, dayOfMonth) -> {
                 calendar.set(Calendar.YEAR, year);
@@ -109,21 +114,30 @@ public class HomeActivity extends AppCompatActivity {
 
         btnSave.setOnClickListener(v -> {
             String title = etTitle.getText().toString().trim();
-            String amount = etAmount.getText().toString().trim();
+            String amountStr = etAmount.getText().toString().trim();
             String category = spCategory.getSelectedItem().toString();
-            String dateTime = new SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault()).format(calendar.getTime());
+            String formattedDate = new SimpleDateFormat("dd-MM-yyyy HH:mm", Locale.getDefault()).format(calendar.getTime());
 
-            if (title.isEmpty() || amount.isEmpty()) {
+            if (title.isEmpty() || amountStr.isEmpty()) {
                 Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            String id = mDatabase.push().getKey();
-            Expense expense = new Expense(id, title, category, amount, dateTime);
-            mDatabase.child(mAuth.getCurrentUser().getUid()).child(id).setValue(expense);
-            
-            Toast.makeText(this, "Expense Added", Toast.LENGTH_SHORT).show();
-            dialog.dismiss();
+            String userId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
+            if (userId == null) return;
+
+            // FIXED: Corrected Firestore Reference (Collection -> Document -> Collection)
+            CollectionReference userExpenses = db.collection("Users").document(userId).collection("Expenses");
+            DocumentReference newDoc = userExpenses.document();
+
+            Expense expense = new Expense(newDoc.getId(), title, category, amountStr, formattedDate);
+
+            newDoc.set(expense)
+                    .addOnSuccessListener(aVoid -> {
+                        Toast.makeText(HomeActivity.this, "Saved to Firestore", Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    })
+                    .addOnFailureListener(e -> Log.e(TAG, "Save Error: " + e.getMessage()));
         });
 
         dialog.show();
@@ -139,44 +153,56 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void loadData() {
-        String userId = mAuth.getCurrentUser().getUid();
-        mDatabase.child(userId).addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                expenseList.clear();
-                double total = 0;
-                Map<String, Float> categoryMap = new HashMap<>();
+        if (mAuth.getCurrentUser() == null) return;
 
-                for (DataSnapshot data : snapshot.getChildren()) {
-                    Expense expense = data.getValue(Expense.class);
-                    if (expense != null) {
-                        expenseList.add(expense);
-                        try {
-                            float amt = Float.parseFloat(expense.amount);
-                            total += amt;
-                            categoryMap.put(expense.category, categoryMap.getOrDefault(expense.category, 0f) + amt);
-                        } catch (Exception e) {}
+        String userId = mAuth.getCurrentUser().getUid();
+
+        // FIXED: Changed from Realtime Database listener to Firestore listener
+        db.collection("Users").document(userId).collection("Expenses")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e(TAG, "Listen failed.", error);
+                        return;
                     }
-                }
-                adapter.notifyDataSetChanged();
-                tvTotalAmount.setText("₹" + String.format("%.2f", total));
-                updateChart(categoryMap);
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        });
+
+                    if (value != null) {
+                        expenseList.clear();
+                        double total = 0;
+                        Map<String, Float> categoryMap = new HashMap<>();
+
+                        for (QueryDocumentSnapshot doc : value) {
+                            Expense expense = doc.toObject(Expense.class);
+                            expenseList.add(expense);
+                            try {
+                                float amt = Float.parseFloat(expense.amount);
+                                total += amt;
+                                categoryMap.put(expense.category, categoryMap.getOrDefault(expense.category, 0f) + amt);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Parsing error");
+                            }
+                        }
+                        adapter.notifyDataSetChanged();
+                        tvTotalAmount.setText("₹" + String.format("%.2f", total));
+                        updateChart(categoryMap);
+                    }
+                });
     }
 
     private void updateChart(Map<String, Float> categoryMap) {
+        if (categoryMap.isEmpty()) {
+            pieChart.clear();
+            return;
+        }
+
         List<PieEntry> entries = new ArrayList<>();
         for (Map.Entry<String, Float> entry : categoryMap.entrySet()) {
             entries.add(new PieEntry(entry.getValue(), entry.getKey()));
         }
 
-        PieDataSet dataSet = new PieDataSet(entries, "Categories");
+        PieDataSet dataSet = new PieDataSet(entries, "");
         dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
         dataSet.setValueTextSize(12f);
-        dataSet.setValueTextColor(android.graphics.Color.BLACK);
+        dataSet.setValueTextColor(Color.BLACK);
 
         PieData data = new PieData(dataSet);
         pieChart.setData(data);
@@ -184,17 +210,25 @@ public class HomeActivity extends AppCompatActivity {
     }
 
     private void deleteExpense(int position) {
+        if (position >= expenseList.size()) return;
+
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Delete Expense")
                 .setMessage("Are you sure you want to delete this expense?")
                 .setPositiveButton("Delete", (d, which) -> {
                     String id = expenseList.get(position).id;
-                    mDatabase.child(mAuth.getCurrentUser().getUid()).child(id).removeValue();
-                    Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show();
+                    String userId = mAuth.getCurrentUser().getUid();
+
+                    // FIXED: Using Firestore delete logic
+                    db.collection("Users").document(userId).collection("Expenses").document(id)
+                            .delete()
+                            .addOnSuccessListener(aVoid -> Toast.makeText(this, "Deleted", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Log.e(TAG, "Delete failed: " + e.getMessage()));
                 })
                 .setNegativeButton("Cancel", null)
                 .create();
 
+        // (The CountDownTimer logic you had is correct and remains the same)
         CountDownTimer timer = new CountDownTimer(3000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
@@ -221,7 +255,6 @@ public class HomeActivity extends AppCompatActivity {
         });
 
         dialog.setOnDismissListener(dialogInterface -> timer.cancel());
-
         dialog.show();
     }
 }
