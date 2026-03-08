@@ -53,6 +53,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
     implementation libs.firebase.firestore
+    implementation libs.play.services.location
 
     // Testing Libraries
     testImplementation libs.junit

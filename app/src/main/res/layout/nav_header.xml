@@ -8,24 +8,43 @@
     android:padding="16dp"
     android:theme="@style/ThemeOverlay.AppCompat.Dark">
 
+    <!-- App Icon -->
     <ImageView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:id="@+id/imgProfile"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:paddingTop="8dp"
         android:src="@android:drawable/sym_def_app_icon" />
 
+    <!-- App Title -->
     <TextView
+        android:id="@+id/tvAppTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="8dp"
         android:text="Expense Tracker"
         android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:textColor="#FFFFFF" />
 
+    <!-- User Name (NEW FIELD) -->
+    <TextView
+        android:id="@+id/tvUserName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="User Name"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:paddingTop="6dp"/>
+
+    <!-- User Email -->
     <TextView
         android:id="@+id/tvUserEmail"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="user@example.com" />
+        android:text="user@example.com"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"/>
 
 </LinearLayout>
