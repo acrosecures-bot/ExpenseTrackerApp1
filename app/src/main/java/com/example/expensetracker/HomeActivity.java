@@ -8,11 +8,16 @@ import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.*;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -20,6 +25,7 @@ import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.data.*;
 import com.github.mikephil.charting.utils.ColorTemplate;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
@@ -29,9 +35,13 @@ import com.google.firebase.firestore.QueryDocumentSnapshot;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-public class HomeActivity extends AppCompatActivity {
+public class HomeActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
-    private FloatingActionButton btnOpenCalc, btnOpenCurrency, fabAddExpense;
+    private DrawerLayout drawerLayout;
+    private NavigationView navigationView;
+    private Toolbar toolbar;
+
+    private FloatingActionButton fabAddExpense;
     private TextView tvTotalAmount;
     private PieChart pieChart;
 
@@ -39,7 +49,6 @@ public class HomeActivity extends AppCompatActivity {
     private ExpenseAdapter adapter;
     private List<Expense> expenseList;
 
-    // FIXED: Using Firestore instead of DatabaseReference
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
     private static final String TAG = "FIRESTORE_DEBUG";
@@ -50,13 +59,31 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
 
         mAuth = FirebaseAuth.getInstance();
-        // FIXED: Initialize the Firestore instance here
         db = FirebaseFirestore.getInstance();
+
+        // Toolbar setup
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+
+        // Drawer Setup
+        drawerLayout = findViewById(R.id.drawer_layout);
+        navigationView = findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
+
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(this, drawerLayout, toolbar,
+                R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawerLayout.addDrawerListener(toggle);
+        toggle.syncState();
+
+        // Update Header Email
+        View headerView = navigationView.getHeaderView(0);
+        TextView tvUserEmail = headerView.findViewById(R.id.tvUserEmail);
+        if (mAuth.getCurrentUser() != null) {
+            tvUserEmail.setText(mAuth.getCurrentUser().getEmail());
+        }
 
         tvTotalAmount = findViewById(R.id.tvTotalAmount);
         pieChart = findViewById(R.id.pieChart);
-        btnOpenCalc = findViewById(R.id.btnOpenCalc);
-        btnOpenCurrency = findViewById(R.id.btnOpenCurrency);
         fabAddExpense = findViewById(R.id.fabAddExpense);
 
         rvExpenses = findViewById(R.id.rvExpenses);
@@ -65,12 +92,39 @@ public class HomeActivity extends AppCompatActivity {
         adapter = new ExpenseAdapter(expenseList, position -> deleteExpense(position));
         rvExpenses.setAdapter(adapter);
 
-        btnOpenCalc.setOnClickListener(v -> startActivity(new Intent(this, CalculatorActivity.class)));
-        btnOpenCurrency.setOnClickListener(v -> startActivity(new Intent(this, CurrencyActivity.class)));
         fabAddExpense.setOnClickListener(v -> showAddExpenseDialog());
 
         setupPieChart();
         loadData();
+    }
+
+    @Override
+    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+
+        if (id == R.id.nav_home) {
+            // Already here
+        } else if (id == R.id.nav_calculator) {
+            startActivity(new Intent(this, CalculatorActivity.class));
+        } else if (id == R.id.nav_currency) {
+            startActivity(new Intent(this, CurrencyActivity.class));
+        } else if (id == R.id.nav_logout) {
+            mAuth.signOut();
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        }
+
+        drawerLayout.closeDrawer(GravityCompat.START);
+        return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        } else {
+            super.onBackPressed();
+        }
     }
 
     private void showAddExpenseDialog() {
@@ -126,7 +180,6 @@ public class HomeActivity extends AppCompatActivity {
             String userId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : null;
             if (userId == null) return;
 
-            // FIXED: Corrected Firestore Reference (Collection -> Document -> Collection)
             CollectionReference userExpenses = db.collection("Users").document(userId).collection("Expenses");
             DocumentReference newDoc = userExpenses.document();
 
@@ -157,7 +210,6 @@ public class HomeActivity extends AppCompatActivity {
 
         String userId = mAuth.getCurrentUser().getUid();
 
-        // FIXED: Changed from Realtime Database listener to Firestore listener
         db.collection("Users").document(userId).collection("Expenses")
                 .addSnapshotListener((value, error) -> {
                     if (error != null) {
@@ -219,7 +271,6 @@ public class HomeActivity extends AppCompatActivity {
                     String id = expenseList.get(position).id;
                     String userId = mAuth.getCurrentUser().getUid();
 
-                    // FIXED: Using Firestore delete logic
                     db.collection("Users").document(userId).collection("Expenses").document(id)
                             .delete()
                             .addOnSuccessListener(aVoid -> Toast.makeText(this, "Deleted", Toast.LENGTH_SHORT).show())
@@ -228,7 +279,6 @@ public class HomeActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .create();
 
-        // (The CountDownTimer logic you had is correct and remains the same)
         CountDownTimer timer = new CountDownTimer(3000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
