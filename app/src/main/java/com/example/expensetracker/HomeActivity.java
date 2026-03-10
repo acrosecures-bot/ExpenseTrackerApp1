@@ -5,6 +5,7 @@ import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.util.Log;
@@ -13,6 +14,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.*;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
@@ -81,6 +83,19 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
 
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
+
+        // Handle Back Press using OnBackPressedDispatcher
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    drawerLayout.closeDrawer(GravityCompat.START);
+                } else {
+                    setEnabled(false);
+                    onBackPressed();
+                }
+            }
+        });
 
         // -------- NAVIGATION HEADER --------
         View headerView = navigationView.getHeaderView(0);
@@ -169,17 +184,6 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
         drawerLayout.closeDrawer(GravityCompat.START);
 
         return true;
-    }
-
-    @SuppressLint("GestureBackNavigation")
-    @Override
-    public void onBackPressed() {
-
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START);
-        } else {
-            super.onBackPressed();
-        }
     }
 
     // ---------------- ADD EXPENSE DIALOG ----------------
@@ -369,33 +373,65 @@ public class HomeActivity extends AppCompatActivity implements NavigationView.On
             return;
         }
 
-        List<PieEntry> entries=new ArrayList<>();
-
-        for(Map.Entry<String,Float> entry:categoryMap.entrySet()){
-            entries.add(new PieEntry(entry.getValue(),entry.getKey()));
+        List<PieEntry> entries = new ArrayList<>();
+        for (Map.Entry<String, Float> entry : categoryMap.entrySet()) {
+            entries.add(new PieEntry(entry.getValue(), entry.getKey()));
         }
 
-        PieDataSet dataSet=new PieDataSet(entries,"");
-
+        PieDataSet dataSet = new PieDataSet(entries, "");
         dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
+        dataSet.setValueTextSize(12f);
+        dataSet.setValueTextColor(Color.BLACK);
 
-        PieData data=new PieData(dataSet);
-
+        PieData data = new PieData(dataSet);
         pieChart.setData(data);
         pieChart.invalidate();
     }
 
-    private void deleteExpense(int position){
+    private void deleteExpense(int position) {
+        if (position >= expenseList.size()) return;
 
-        if(position>=expenseList.size()) return;
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Delete Expense")
+                .setMessage("Are you sure you want to delete this expense?")
+                .setPositiveButton("Delete", (d, which) -> {
+                    String id = expenseList.get(position).id;
+                    String userId = mAuth.getCurrentUser().getUid();
 
-        String id = expenseList.get(position).id;
-        String userId = mAuth.getCurrentUser().getUid();
+                    db.collection("Users").document(userId).collection("Expenses").document(id)
+                            .delete()
+                            .addOnSuccessListener(aVoid -> Toast.makeText(this, "Deleted", Toast.LENGTH_SHORT).show())
+                            .addOnFailureListener(e -> Log.e(TAG, "Delete failed: " + e.getMessage()));
+                })
+                .setNegativeButton("Cancel", null)
+                .create();
 
-        db.collection("Users")
-                .document(userId)
-                .collection("Expenses")
-                .document(id)
-                .delete();
+        CountDownTimer timer = new CountDownTimer(3000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                Button deleteButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                if (deleteButton != null) {
+                    deleteButton.setText("Delete (" + (millisUntilFinished / 1000 + 1) + ")");
+                }
+            }
+
+            @Override
+            public void onFinish() {
+                Button deleteButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                if (deleteButton != null) {
+                    deleteButton.setEnabled(true);
+                    deleteButton.setText("Delete");
+                }
+            }
+        };
+
+        dialog.setOnShowListener(dialogInterface -> {
+            Button deleteButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            deleteButton.setEnabled(false);
+            timer.start();
+        });
+
+        dialog.setOnDismissListener(dialogInterface -> timer.cancel());
+        dialog.show();
     }
 }
